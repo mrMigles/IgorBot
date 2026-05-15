@@ -1,12 +1,15 @@
 package ru.javazen.telegram.bot.scheduler;
 
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatAdministrators;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.chatmember.ChatMember;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.javazen.telegram.bot.handler.base.TextMessageHandler;
 import ru.javazen.telegram.bot.scheduler.service.MessageSchedulerService;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public class UnschedulerNotifyHandler implements TextMessageHandler {
@@ -22,7 +25,7 @@ public class UnschedulerNotifyHandler implements TextMessageHandler {
 
     @Override
     public boolean handle(Message message, String text, AbsSender sender) throws TelegramApiException {
-        if (!message.isReply() || !isReplyAuthor(message)) {
+        if (!message.isReply() || !canCancelTask(message, sender)) {
             return false;
         }
 
@@ -39,8 +42,22 @@ public class UnschedulerNotifyHandler implements TextMessageHandler {
         return canceled;
     }
 
+    private boolean canCancelTask(Message message, AbsSender sender) throws TelegramApiException {
+        return isReplyAuthor(message) || isChatAdmin(message, sender);
+    }
+
     private boolean isReplyAuthor(Message message) {
         return message.getFrom().getId().equals(message.getReplyToMessage().getFrom().getId());
+    }
+
+    private boolean isChatAdmin(Message message, AbsSender sender) throws TelegramApiException {
+        GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+        getChatAdministrators.setChatId(message.getChatId());
+
+        List<ChatMember> administrators = sender.execute(getChatAdministrators);
+        return administrators.stream()
+                .map(ChatMember::getUser)
+                .anyMatch(user -> message.getFrom().getId().equals(user.getId()));
     }
 }
 
